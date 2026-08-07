@@ -1,6 +1,10 @@
 ---
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { getRelativeLocaleUrl } from "astro:i18n";
 import { getCollection } from "astro:content";
+import type { CollectionEntry } from "astro:content";
 import Layout from "@/layouts/Layout.astro";
 import Header from "@/components/Header.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
@@ -22,9 +26,17 @@ if (!config.features.showArchives && notFoundUrl) {
 
 const t = useTranslations(locale);
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 const posts = await getCollection("posts");
 const filteredPosts = posts.filter(postFilter);
 const monthFormatter = new Intl.DateTimeFormat(locale, { month: "long" });
+
+// Group in the same timezone Datetime.astro uses for display, so posts near
+// month/year boundaries don't shift groups when the build host is UTC.
+const toLocalDate = (post: CollectionEntry<"posts">) =>
+  dayjs(post.data.pubDatetime).tz(post.data.timezone ?? config.site.timezone);
 ---
 
 <Layout title={`${t.pages.archivesTitle} | ${config.site.title}`}>
@@ -36,7 +48,7 @@ const monthFormatter = new Intl.DateTimeFormat(locale, { month: "long" });
     {
       Object.entries(
         getPostsByGroupCondition(filteredPosts, post =>
-          post.data.pubDatetime.getFullYear()
+          toLocalDate(post).year()
         )
       )
         .sort(([yearA], [yearB]) => Number(yearB) - Number(yearA))
@@ -47,7 +59,7 @@ const monthFormatter = new Intl.DateTimeFormat(locale, { month: "long" });
             {Object.entries(
               getPostsByGroupCondition(
                 yearGroup,
-                post => post.data.pubDatetime.getMonth() + 1
+                post => toLocalDate(post).month() + 1
               )
             )
               .sort(([monthA], [monthB]) => Number(monthB) - Number(monthA))
